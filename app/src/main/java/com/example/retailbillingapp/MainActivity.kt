@@ -1,10 +1,8 @@
 package com.example.retailbillingapp
 
-import android.graphics.Bitmap
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,11 +11,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-//import com.google.zxing.BarcodeFormat
-//import com.journeyapps.barcodescanner.BarcodeEncoder
+import java.text.SimpleDateFormat
+import java.util.*
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,14 +27,13 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun RetailBillingApp() {
-    var totalAmount by remember { mutableIntStateOf(0) }
-    val itemList = listOf("Item 1 - \$10", "Item 2 - \$20", "Item 3 - \$30")
-    val itemPrices = listOf(10, 20, 30)
+    var totalAmount by remember { mutableStateOf(0) }
+    val itemList = listOf("Alternagel - ₹200", "Bepanthen - ₹560", "Item 3 - ₹300") // Example items
+    val itemPrices = listOf(200, 560, 300)
     var selectedItem by remember { mutableStateOf(itemList[0]) }
     var quantity by remember { mutableStateOf("") }
-    var showQRCode by remember { mutableStateOf(false) }
-    var qrCodeBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var billItems by remember { mutableStateOf<List<String>>(emptyList()) } // List of items added to the bill
+    var billItems by remember { mutableStateOf<List<BillItem>>(emptyList()) } // List of items added to the bill
+    var showInvoice by remember { mutableStateOf(false) } // State to control invoice visibility
 
     Column(
         modifier = Modifier
@@ -77,7 +73,12 @@ fun RetailBillingApp() {
                     totalAmount += itemTotal
 
                     // Add item to the bill list
-                    val billItem = "${selectedItem.split(" - ")[0]}, Quantity: $qty, Total: \$$itemTotal"
+                    val billItem = BillItem(
+                        name = selectedItem.split(" - ")[0],
+                        quantity = qty,
+                        price = itemPrice,
+                        total = itemTotal
+                    )
                     billItems = billItems + billItem
                 }
             },
@@ -86,9 +87,9 @@ fun RetailBillingApp() {
             Text("Add to Bill")
         }
 
-        // Bill Summary
+        // Display Selected Items
         Text(
-            text = "Bill Summary",
+            text = "Selected Items",
             style = MaterialTheme.typography.headlineSmall,
             modifier = Modifier.padding(top = 16.dp)
         )
@@ -98,71 +99,115 @@ fun RetailBillingApp() {
                 .padding(8.dp)
         ) {
             items(billItems) { item ->
-                Text(text = item, modifier = Modifier.padding(4.dp))
+                SelectedItemRow(
+                    item = item,
+                    onDelete = {
+                        // Remove item from the bill
+                        billItems = billItems.filter { it != item }
+                        totalAmount -= item.total
+                    },
+                    onQuantityChange = { newQty ->
+                        // Update item quantity
+                        val updatedItem = item.copy(quantity = newQty, total = item.price * newQty)
+                        billItems = billItems.map { if (it == item) updatedItem else it }
+                        totalAmount = billItems.sumOf { it.total }
+                    }
+                )
             }
         }
-        Text(text = "Total Amount: \$$totalAmount", style = MaterialTheme.typography.headlineSmall)
 
-        // Generate Invoice Button
+        // Print Invoice Button
         Button(
             onClick = {
-                if (totalAmount > 0) {
-                    val upiId = "preetheshcarvalho57-1@oksbi" // Replace with your UPI ID
-                    val paymentDetails = "upi://pay?pa=$upiId&pn=Retailer&am=$totalAmount&cu=INR"
-//                    val barcodeEncoder = BarcodeEncoder()
-//                    qrCodeBitmap = barcodeEncoder.encodeBitmap(paymentDetails, BarcodeFormat.QR_CODE, 400, 400)
-//                    showQRCode = true
-                }
+                // Show the invoice
+                showInvoice = true
             },
             modifier = Modifier.padding(top = 16.dp)
         ) {
-            Text("Generate Invoice")
+            Text("Print Invoice")
         }
 
-        // Invoice with QR Code
-        if (showQRCode && qrCodeBitmap != null) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // Display Bill Items
-                Text(
-                    text = "Invoice Details",
-                    style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp)
-                ) {
-                    items(billItems) { item ->
-                        Text(text = item, modifier = Modifier.padding(4.dp))
-                    }
-                }
-                Text(
-                    text = "Total Amount: \$$totalAmount",
-                    style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-
-                // Display QR Code
-                Text(
-                    text = "Scan to Pay",
-                    style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.padding(top = 16.dp)
-                )
-                Image(
-                    bitmap = qrCodeBitmap!!.asImageBitmap(),
-                    contentDescription = "QR Code",
-                    modifier = Modifier
-                        .size(200.dp)
-                        .padding(top = 16.dp)
-                )
-            }
+        // Display Invoice
+        if (showInvoice) {
+            InvoiceTemplate(billItems, totalAmount)
         }
+    }
+}
+
+@Composable
+fun SelectedItemRow(
+    item: BillItem,
+    onDelete: () -> Unit,
+    onQuantityChange: (Int) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = "${item.name}, Qty: ${item.quantity}, Total: ₹${item.total}", modifier = Modifier.weight(1f))
+        Button(onClick = { onQuantityChange(item.quantity - 1) }, enabled = item.quantity > 1) {
+            Text("-")
+        }
+        Button(onClick = { onQuantityChange(item.quantity + 1) }) {
+            Text("+")
+        }
+        Button(onClick = onDelete) {
+            Text("Delete")
+        }
+    }
+}
+
+@Composable
+fun InvoiceTemplate(billItems: List<BillItem>, totalAmount: Int) {
+    val dateFormat = SimpleDateFormat("dd/MM/yyyy, hh:mm a", Locale.getDefault())
+    val currentDate = dateFormat.format(Date())
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Header
+        Text(text = "RAGA PVT LTD", style = MaterialTheme.typography.headlineSmall)
+        Text(text = "S USMAN ROAD, T. NAGAR,", style = MaterialTheme.typography.bodySmall)
+        Text(text = "CHENNAI, TAMIL NADU.", style = MaterialTheme.typography.bodySmall)
+        Text(text = "PHONE : 044 258636222", style = MaterialTheme.typography.bodySmall)
+        Text(text = "GSTIN : 33AAAGP0685F1ZH", style = MaterialTheme.typography.bodySmall)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Invoice Details
+        Text(text = "Retail Invoice", style = MaterialTheme.typography.headlineSmall)
+        Text(text = "Date : $currentDate", style = MaterialTheme.typography.bodySmall)
+        Text(text = "Bill No: SR2", style = MaterialTheme.typography.bodySmall)
+        Text(text = "Payment Mode: Cash", style = MaterialTheme.typography.bodySmall)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Item Table
+        Text(text = "| Item        | Qty | Amt   |", style = MaterialTheme.typography.bodySmall)
+        billItems.forEach { item ->
+            Text(text = "| ${item.name} | ${item.quantity} | ₹${item.total} |", style = MaterialTheme.typography.bodySmall)
+        }
+
+        // Totals and Taxes
+        Text(text = "Sub Total    | ${billItems.size} | ₹$totalAmount |", style = MaterialTheme.typography.bodySmall)
+//        Text(text = "(-) Discount |     | ₹26.00 |", style = MaterialTheme.typography.bodySmall)
+//        Text(text = "CGST @ 14.00% |     | ₹24.36 |", style = MaterialTheme.typography.bodySmall)
+//        Text(text = "SGST @ 14.00% |     | ₹22.35 |", style = MaterialTheme.typography.bodySmall)
+//        Text(text = "CGST @ 2.50% |     | ₹14.00 |", style = MaterialTheme.typography.bodySmall)
+//        Text(text = "SGST @ 2.50% |     | ₹14.00 |", style = MaterialTheme.typography.bodySmall)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Total Amount
+        Text(text = "**TOTAL** |     | ₹$totalAmount |", style = MaterialTheme.typography.headlineSmall)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Footer
+        Text(text = "Cash : ₹$totalAmount", style = MaterialTheme.typography.bodySmall)
+        Text(text = "Cash tendered: ₹$totalAmount", style = MaterialTheme.typography.bodySmall)
+        Text(text = "E & O.E", style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -197,3 +242,10 @@ fun Spinner(
         }
     }
 }
+
+data class BillItem(
+    val name: String,
+    var quantity: Int,
+    val price: Int,
+    var total: Int
+)

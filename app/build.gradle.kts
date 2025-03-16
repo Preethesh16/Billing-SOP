@@ -56,8 +56,8 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
-//    implementation ("com.journey apps:barcode scanner:4.3.0")
-    // Room Database
+//    implementation ("com.github.ansjdn:escpos-coffee:4.0.0")
+
     implementation ("androidx.room:room-runtime:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1") // Use ksp instead of kapt
     // Jetpack Navigation
@@ -65,4 +65,6 @@ dependencies {
 
     // Coroutines
     implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation ("androidx.activity:activity-ktx:1.10.1")
+    implementation ("androidx.fragment:fragment-ktx:1.8.6")
 }

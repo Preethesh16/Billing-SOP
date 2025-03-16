@@ -135,28 +135,35 @@ class MainActivity : ComponentActivity() {
             // Initialize printer
             outputStream?.write(byteArrayOf(0x1B, 0x40)) // ESC @ (Initialize printer)
 
-            // Add header
-            outputStream?.write("RAGA PVT LTD\n".toByteArray(Charsets.US_ASCII))
-            outputStream?.write("S USMAN ROAD, T. NAGAR,\n".toByteArray(Charsets.US_ASCII))
-            outputStream?.write("CHENNAI, TAMIL NADU.\n".toByteArray(Charsets.US_ASCII))
-            outputStream?.write("PHONE : 044 258636222\n".toByteArray(Charsets.US_ASCII))
-            outputStream?.write("GSTIN : 33AAAGP0685F1ZH\n".toByteArray(Charsets.US_ASCII))
-            outputStream?.write("\n".toByteArray(Charsets.US_ASCII))
-
-            // Add invoice details
-            outputStream?.write("Retail Invoice\n".toByteArray(Charsets.US_ASCII))
+            // Print Seller Bill
+            outputStream?.write("Seller Bill\n".toByteArray(Charsets.US_ASCII))
             outputStream?.write("Token Number: $tokenNumber\n".toByteArray(Charsets.US_ASCII))
-            outputStream?.write("\n".toByteArray(Charsets.US_ASCII))
-
-            // Add item table
-            outputStream?.write("Item        | Qty | Amt\n".toByteArray(Charsets.US_ASCII))
             outputStream?.write("------------------------\n".toByteArray(Charsets.US_ASCII))
             billItems.forEach { item ->
                 outputStream?.write("${item.name} | ${item.quantity} | ₹${item.total}\n".toByteArray(Charsets.US_ASCII))
             }
             outputStream?.write("\n".toByteArray(Charsets.US_ASCII))
 
-            // Add total amount
+            // Add a 3-second delay
+            Thread.sleep(3000) // 3 seconds delay
+
+            // Print Retail Invoice
+            outputStream?.write("Retail Invoice\n".toByteArray(Charsets.US_ASCII))
+            outputStream?.write("------------------------\n".toByteArray(Charsets.US_ASCII))
+            outputStream?.write("RAGA PVT LTD\n".toByteArray(Charsets.US_ASCII))
+            outputStream?.write("S USMAN ROAD, T. NAGAR,\n".toByteArray(Charsets.US_ASCII))
+            outputStream?.write("CHENNAI, TAMIL NADU.\n".toByteArray(Charsets.US_ASCII))
+            outputStream?.write("PHONE : 044 258636222\n".toByteArray(Charsets.US_ASCII))
+            outputStream?.write("GSTIN : 33AAAGP0685F1ZH\n".toByteArray(Charsets.US_ASCII))
+            outputStream?.write("\n".toByteArray(Charsets.US_ASCII))
+            outputStream?.write("Token Number: $tokenNumber\n".toByteArray(Charsets.US_ASCII))
+            outputStream?.write("\n".toByteArray(Charsets.US_ASCII))
+            outputStream?.write("Item        | Qty | Amt\n".toByteArray(Charsets.US_ASCII))
+            outputStream?.write("------------------------\n".toByteArray(Charsets.US_ASCII))
+            billItems.forEach { item ->
+                outputStream?.write("${item.name} | ${item.quantity} | ₹${item.total}\n".toByteArray(Charsets.US_ASCII))
+            }
+            outputStream?.write("\n".toByteArray(Charsets.US_ASCII))
             outputStream?.write("Total: ₹$totalAmount\n".toByteArray(Charsets.US_ASCII))
             outputStream?.write("\n\n\n".toByteArray(Charsets.US_ASCII)) // Add space at the bottom for cutting
 
@@ -169,6 +176,9 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "Bill printed successfully", Toast.LENGTH_SHORT).show()
         } catch (e: IOException) {
             Toast.makeText(this, "Failed to print bill", Toast.LENGTH_SHORT).show()
+            e.printStackTrace()
+        } catch (e: InterruptedException) {
+            Toast.makeText(this, "Printing interrupted", Toast.LENGTH_SHORT).show()
             e.printStackTrace()
         }
     }
@@ -198,17 +208,13 @@ fun RetailBillingApp(mainActivity: MainActivity) {
     var tokenNumber by remember { mutableStateOf(1) }
     var isEditingToken by remember { mutableStateOf(false) }
     var tempTokenNumber by remember { mutableStateOf(tokenNumber.toString()) }
-    var showDevicePicker by remember { mutableStateOf(false) }
 
     val focusManager = LocalFocusManager.current
-
-    // Scroll state for the entire page
-    val scrollState = rememberScrollState()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(scrollState) // Make the entire page scrollable
+            .verticalScroll(rememberScrollState()) // Make the page scrollable
             .clickable { focusManager.clearFocus() }
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -292,7 +298,7 @@ fun RetailBillingApp(mainActivity: MainActivity) {
                 .focusRequester(focusRequester)
         )
 
-        // Buttons Row: Add to Bill, Print Invoice, Select Printer
+        // Buttons Row: Add to Bill, Generate, Print Invoice
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -324,26 +330,26 @@ fun RetailBillingApp(mainActivity: MainActivity) {
                 Text("Add to Bill")
             }
 
-            // Print Invoice Button
+            // Generate Button
             Button(
                 onClick = {
                     showInvoice = true
                     focusManager.clearFocus()
-                    mainActivity.printBill(billItems, totalAmount, tokenNumber)
                 },
                 modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
             ) {
-                Text("Print Invoice")
+                Text("Generate")
             }
 
-            // Select Printer Button
+            // Print Invoice Button
             Button(
                 onClick = {
-                    showDevicePicker = true
+                    focusManager.clearFocus()
+                    mainActivity.printBill(billItems, totalAmount, tokenNumber)
                 },
                 modifier = Modifier.weight(1f).padding(start = 8.dp)
             ) {
-                Text("Select Printer")
+                Text("Print Invoice")
             }
         }
 
@@ -375,6 +381,25 @@ fun RetailBillingApp(mainActivity: MainActivity) {
             }
         }
 
+        // Next Bill Button
+        Button(
+            onClick = {
+                // Clear the bill items
+                billItems = emptyList()
+                // Reset the total amount
+                totalAmount = 0
+                // Increment the token number
+                tokenNumber++
+                // Hide the invoice
+                showInvoice = false
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp)
+        ) {
+            Text("Next Bill")
+        }
+
         // Display Invoices (Scrollable)
         if (showInvoice) {
             Column(
@@ -386,12 +411,13 @@ fun RetailBillingApp(mainActivity: MainActivity) {
                 Spacer(modifier = Modifier.height(16.dp))
                 InvoiceTemplate(billItems, totalAmount, tokenNumber)
                 LaunchedEffect(showInvoice) {
-                    tokenNumber++
+                    tokenNumber+0;
                 }
             }
         }
     }
 }
+
 @Composable
 fun SellerBillTemplate(billItems: List<BillItem>, tokenNumber: Int) {
     Column(
